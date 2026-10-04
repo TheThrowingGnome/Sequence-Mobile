@@ -1,0 +1,16 @@
+{
+  "name": "Sequence",
+  "short_name": "Sequence",
+  "description": "The Sequence board game: play the computer, pass and play, or online with friends.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e9eee9",
+  "theme_color": "#1d5a45",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
