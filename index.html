@@ -228,22 +228,27 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 }
 .banner .think i { background: var(--paper); }
 
-/* Chat (online games): floating button bottom right, toast for new messages, chat sheet */
-body.chat-on .app { padding-bottom: 68px; }
-body.chat-on .board-wrap { width: min(100%, max(300px, calc(100dvh - 372px))); }
+/* Chat (online games). The button lives at the right end of the tray row and takes no extra space. When the screen has room
+   below the tray it floats in the bottom right corner instead (placeChatBtn). Toast for new messages, chat sheet. */
 .chat-fab {
-  position: fixed; z-index: 15; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  display: flex; align-items: center; gap: 7px; padding: 11px 16px; border: 0; border-radius: 999px;
-  background: var(--mat); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 8px 20px -8px rgba(0,0,0,.6);
+  flex: none; display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 0; border-radius: 999px;
+  background: var(--mat); color: #fff; font-weight: 700; font-size: 13px;
 }
-.chat-fab svg { width: 18px; height: 18px; }
-.chat-fab .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.chat-fab.float {
+  position: fixed; z-index: 15; height: 38px; padding: 0 14px; box-shadow: 0 8px 20px -8px rgba(0,0,0,.6);
+  right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.chat-fab.compact { padding: 0 10px; }
+.chat-fab.compact .lbl { display: none; }
+.chat-fab svg { width: 16px; height: 16px; }
+.chat-fab .badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 11px; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
 .chat-toast {
-  position: fixed; z-index: 15; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  position: fixed; z-index: 15; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   max-width: min(280px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 2px; text-align: left;
   background: var(--panel); color: var(--ink); border: 1.5px solid var(--line); border-radius: 14px 14px 4px 14px;
   padding: 8px 12px; font-size: 14px; line-height: 1.35; box-shadow: 0 8px 20px -8px rgba(0,0,0,.5); animation: rise .25s ease-out; word-break: break-word;
 }
+.chat-toast.pass { pointer-events: none; } /* over the hand: let taps reach the cards underneath */
 .chat-toast b { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .chat-toast.big .msg { font-size: 40px; line-height: 1.1; animation: wobble .6s ease-out; display: inline-block; }
 @keyframes wobble { 0% { transform: scale(.3) rotate(-25deg); } 60% { transform: scale(1.25) rotate(10deg); } 100% { transform: none; } }
@@ -289,14 +294,14 @@ body.chat-on .board-wrap { width: min(100%, max(300px, calc(100dvh - 372px))); }
       <span class="spacer"></span>
       <button class="btn gold" id="tradeBtn" hidden>Trade dead card</button>
       <button class="btn ghost" id="passBtn" hidden>Pass turn</button>
+      <button class="chat-fab" id="chatBtn" hidden aria-label="Chat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>
+        <span class="lbl">Chat</span><span class="badge" id="chatBadge" hidden></span>
+      </button>
     </div>
   </div>
 </div>
 
-<button class="chat-fab" id="chatBtn" hidden aria-label="Chat">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>
-  <span>Chat</span><span class="badge" id="chatBadge" hidden></span>
-</button>
 <button class="chat-toast" id="chatToast" hidden></button>
 
 <div class="banner" id="banner" hidden><span class="think"><i></i><i></i><i></i></span><span id="bannerText">Reconnecting</span></div>
@@ -972,6 +977,20 @@ function renderChatBtn() {
   $('chatBadge').textContent = n > 9 ? '9+' : n;
   $('chatBtn').setAttribute('aria-label', n ? `Chat, ${n} new message${n > 1 ? 's' : ''}` : 'Chat');
 }
+// Float the button in the screen corner when that corner is empty; otherwise keep it in the tray row so it never
+// covers cards or buttons and never pushes the layout. In the row, drop the label if it would wrap onto a new line.
+function placeChatBtn() {
+  const btn = $('chatBtn');
+  if (btn.hidden) return;
+  btn.classList.add('float'); btn.classList.remove('compact');
+  const trayBottom = document.querySelector('.tray').getBoundingClientRect().bottom;
+  if (btn.getBoundingClientRect().top >= trayBottom + 8) return;
+  btn.classList.remove('float');
+  const row = $('deckCount').parentElement.getBoundingClientRect();
+  if (btn.getBoundingClientRect().top > row.top + row.height / 2) btn.classList.add('compact');
+}
+addEventListener('resize', placeChatBtn);
+if (window.visualViewport) visualViewport.addEventListener('resize', placeChatBtn);
 const teamClass = t => t === 0 || t === 1 || t === 2 ? ` t${t}` : '';
 function renderChat(toBottom) {
   if (!CHAT.open) return;
@@ -988,6 +1007,10 @@ function chatToast(m) {
   const t = $('chatToast');
   t.classList.toggle('big', !!m.emoji);
   t.innerHTML = `<b>${esc(m.name)}</b><span class="msg">${esc(m.emoji || m.text)}</span>`;
+  const b = $('chatBtn').getBoundingClientRect();
+  t.classList.toggle('pass', !$('chatBtn').classList.contains('float'));
+  t.style.right = Math.max(16, innerWidth - b.right) + 'px';
+  t.style.bottom = Math.max(16, innerHeight - b.top + 8) + 'px';
   t.hidden = false; t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
   clearTimeout(CHAT.toastTimer);
   CHAT.toastTimer = setTimeout(() => t.hidden = true, m.emoji ? 2600 : 4000);
@@ -1123,6 +1146,7 @@ function render() {
   }
   $('status').innerHTML = html;
   const tk = $('takeoverBtn'); if (tk) tk.addEventListener('click', () => hostTakeover(v.turn));
+  placeChatBtn();
 }
 function lastText(v) {
   const L = v.last; if (!L) return '';
@@ -1165,7 +1189,6 @@ function renderOverlays(v) {
 
   // chat button: only while an online game is being played
   const chatOn = chatAvailable(v);
-  document.body.classList.toggle('chat-on', chatOn);
   $('chatBtn').hidden = !chatOn;
   if (!chatOn) { $('chatToast').hidden = true; if (CHAT.open) closeChat(); }
   else renderChatBtn();
