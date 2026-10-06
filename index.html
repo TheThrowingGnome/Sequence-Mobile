@@ -228,6 +228,42 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 }
 .banner .think i { background: var(--paper); }
 
+/* Chat (online games): floating button bottom right, toast for new messages, chat sheet */
+body.chat-on .app { padding-bottom: 68px; }
+body.chat-on .board-wrap { width: min(100%, max(300px, calc(100dvh - 372px))); }
+.chat-fab {
+  position: fixed; z-index: 15; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 7px; padding: 11px 16px; border: 0; border-radius: 999px;
+  background: var(--mat); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 8px 20px -8px rgba(0,0,0,.6);
+}
+.chat-fab svg { width: 18px; height: 18px; }
+.chat-fab .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.chat-toast {
+  position: fixed; z-index: 15; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  max-width: min(280px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 2px; text-align: left;
+  background: var(--panel); color: var(--ink); border: 1.5px solid var(--line); border-radius: 14px 14px 4px 14px;
+  padding: 8px 12px; font-size: 14px; line-height: 1.35; box-shadow: 0 8px 20px -8px rgba(0,0,0,.5); animation: rise .25s ease-out; word-break: break-word;
+}
+.chat-toast b { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.chat-toast.big .msg { font-size: 40px; line-height: 1.1; animation: wobble .6s ease-out; display: inline-block; }
+@keyframes wobble { 0% { transform: scale(.3) rotate(-25deg); } 60% { transform: scale(1.25) rotate(10deg); } 100% { transform: none; } }
+.chat-sheet { height: min(620px, 100%); overflow: hidden; gap: 10px; }
+.chat-head { display: flex; align-items: center; justify-content: space-between; }
+.chat-log { flex: 1; min-height: 100px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px; overscroll-behavior: contain; }
+.msg-row { display: flex; flex-direction: column; align-items: flex-start; max-width: 85%; }
+.msg-row.mine { align-self: flex-end; align-items: flex-end; }
+.msg-row .from { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 11px; font-weight: 700; color: var(--muted); }
+.msg-row .from .dot { width: 8px; height: 8px; }
+.bubble { background: var(--paper); border: 1.5px solid var(--line); border-radius: 14px; padding: 7px 11px; line-height: 1.35; word-break: break-word; }
+.mine .bubble { background: var(--mat); border-color: var(--mat); color: #fff; }
+.bubble.emoji { background: transparent; border: 0; padding: 0; font-size: 38px; line-height: 1.15; }
+.sheet p.chat-empty { margin: auto; text-align: center; font-size: 14px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.emoji-grid button { border: 0; background: transparent; font-size: 24px; line-height: 1; padding: 6px 0; border-radius: 8px; transition: transform .1s; }
+.emoji-grid button:active { background: var(--line); transform: scale(1.25); }
+.chat-form { display: flex; gap: 8px; }
+.chat-form .input { flex: 1; min-width: 0; }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -256,6 +292,12 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
     </div>
   </div>
 </div>
+
+<button class="chat-fab" id="chatBtn" hidden aria-label="Chat">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>
+  <span>Chat</span><span class="badge" id="chatBadge" hidden></span>
+</button>
+<button class="chat-toast" id="chatToast" hidden></button>
 
 <div class="banner" id="banner" hidden><span class="think"><i></i><i></i><i></i></span><span id="bannerText">Reconnecting</span></div>
 
@@ -375,6 +417,22 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
       <button class="btn" id="againBtn">Play again</button>
       <button class="btn ghost" id="viewBoard">See board</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="chat" hidden>
+  <div class="sheet chat-sheet" role="dialog" aria-labelledby="chatTitle">
+    <div class="chat-head">
+      <h2 id="chatTitle">Chat</h2>
+      <button class="icon-btn" id="chatClose" aria-label="Close chat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="chat-log" id="chatLog" aria-live="polite"></div>
+    <div class="emoji-grid" id="emojiGrid" aria-label="Send an emoji"></div>
+    <form class="chat-form" id="chatForm">
+      <input class="input" id="chatInput" maxlength="140" placeholder="Say something" autocomplete="off" enterkeyhint="send" aria-label="Message">
+      <button class="btn" type="submit">Send</button>
+    </form>
+    <p class="err" id="chatErr" hidden></p>
   </div>
 </div>
 
@@ -657,6 +715,7 @@ function netReset() {
   clearTimeout(NET.retry); clearInterval(NET.hbTimer);
   try { NET.peer && NET.peer.destroy(); } catch (e) {}
   Object.assign(NET, { peer: null, conns: new Map(), conn: null, status: 'idle', code: null });
+  chatReset();
 }
 const peerAvailable = () => typeof window.Peer === 'function';
 
@@ -675,6 +734,7 @@ function hostCreate(layoutKey, name) {
 }
 function hostResume(saved) {
   mode = 'host'; G = saved; NET.code = saved.code;
+  CHAT.seen = lastChatId(G.chat || []);
   G.seats.forEach(s => { if (s.kind === 'remote') s.online = false; });
   hostOpen(); render(); scheduleAI();
 }
@@ -739,8 +799,8 @@ function hostData(conn, d) {
     }
     if (seat < 0) seat = null;
     for (const [c, x] of NET.conns) if (x.seat !== null && x.seat === seat && c !== conn) { try { c.close(); } catch (e) {} NET.conns.delete(c); }
-    NET.conns.set(conn, { seat, seen: Date.now() });
-    try { conn.send({ t: 'welcome', seat }); } catch (e) {}
+    NET.conns.set(conn, { seat, name, seen: Date.now(), chatTimes: [] });
+    try { conn.send({ t: 'welcome', seat }); conn.send({ t: 'chatlog', list: G.chat || [] }); } catch (e) {}
     store.set(KEY_HOST, G); broadcast(); render();
     return;
   }
@@ -751,6 +811,13 @@ function hostData(conn, d) {
     if (err) { try { conn.send({ t: 'err', msg: err }); } catch (e) {} return; }
     if (a.type === 'play') ui.dropCell = a.cell;
     afterChange();
+    return;
+  }
+  if (d.t === 'chat') {
+    const now = Date.now();
+    info.chatTimes = info.chatTimes.filter(t => now - t < CHAT_WINDOW);
+    if (info.chatTimes.length >= CHAT_BURST) { try { conn.send({ t: 'chaterr', msg: 'Slow down a little' }); } catch (e) {} return; }
+    if (hostChat(info.seat, info.name, d)) info.chatTimes.push(now);
   }
 }
 function broadcast() {
@@ -827,6 +894,14 @@ function clientData(d) {
     render(); return;
   }
   if (d.t === 'err') { flash(d.msg); return; }
+  if (d.t === 'chat' && d.m) { chatReceive(d.m); return; }
+  if (d.t === 'chatlog' && Array.isArray(d.list)) {
+    const fresh = !CHAT.list.length;
+    CHAT.list = d.list.slice(-CHAT_MAX);
+    if (fresh || CHAT.open) CHAT.seen = lastChatId(CHAT.list); // don't flag history from before this page load as unread
+    renderChat(); renderChatBtn(); return;
+  }
+  if (d.t === 'chaterr') { chatError(d.msg); return; }
 }
 function leaveOnline() {
   netReset(); store.del(KEY_SESSION); store.del(KEY_HOST);
@@ -835,6 +910,87 @@ function leaveOnline() {
   G = store.get(KEY_LOCAL);
   if (!G || G.v !== 2) newLocal('cpu', '1v1', 'sharp');
   else { render(); scheduleAI(); }
+}
+
+/* =================== Chat (online only) =================== */
+// Clients send { t: 'chat', text } or { t: 'chat', emoji } to the host. The host stamps the sender's seat and name,
+// keeps the last CHAT_MAX messages in G.chat (so they survive a host reload) and relays each message to everyone.
+const EMOJIS = ['🤪', '😜', '🤡', '💩', '🙈', '🦄', '🐔', '🥴', '😱', '🤯', '😎', '🫠', '🥳', '👻', '🐸', '🍌', '🤦', '😭', '😂', '🔥', '👀', '🧠', '🐢', '🎉'];
+const CHAT_MAX = 60, CHAT_LEN = 140, CHAT_BURST = 6, CHAT_WINDOW = 8000;
+const CHAT = { list: [], seen: 0, open: false, toastTimer: null };
+const cleanChat = s => String(s || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT_LEN);
+const lastChatId = list => list.length ? list[list.length - 1].id : 0;
+const chatList = () => mode === 'host' ? (G && G.chat) || [] : CHAT.list;
+const chatAvailable = v => mode !== 'local' && !!v && v.phase === 'play';
+function chatMine(m) { const v = currentView(); return !!v && m.seat !== null && m.seat === v.me; }
+function chatReset() {
+  CHAT.list = []; CHAT.seen = 0; CHAT.open = false;
+  clearTimeout(CHAT.toastTimer);
+  $('chat').hidden = true; $('chatToast').hidden = true;
+}
+// Host only: validate, store and relay one message. Returns true when it was posted.
+function hostChat(seat, name, d) {
+  const emoji = EMOJIS.includes(d.emoji) ? d.emoji : null, text = emoji ? '' : cleanChat(d.text);
+  if (!emoji && !text) return false;
+  const st = seat !== null ? G.seats[seat] : null;
+  G.chatSeq = (G.chatSeq || 0) + 1;
+  const m = { id: G.chatSeq, seat, name: st ? st.name : name || 'Watcher', team: st ? st.team : null, ...(emoji ? { emoji } : { text }) };
+  (G.chat ||= []).push(m);
+  if (G.chat.length > CHAT_MAX) G.chat.splice(0, G.chat.length - CHAT_MAX);
+  store.set(KEY_HOST, G);
+  for (const [c] of NET.conns) if (c.open) { try { c.send({ t: 'chat', m }); } catch (e) {} }
+  chatReceive(m);
+  return true;
+}
+function chatReceive(m) {
+  if (!m || typeof m !== 'object') return;
+  if (mode === 'client') { CHAT.list.push(m); if (CHAT.list.length > CHAT_MAX) CHAT.list.splice(0, CHAT.list.length - CHAT_MAX); }
+  if (CHAT.open) { CHAT.seen = m.id; renderChat(chatMine(m)); }
+  else if (!chatMine(m) && chatAvailable(currentView())) chatToast(m);
+  renderChatBtn();
+}
+function sendChat(d) {
+  if (mode === 'host') return hostChat(0, null, d);
+  if (mode === 'client' && NET.status === 'open' && NET.conn && NET.conn.open) { NET.send({ t: 'chat', ...d }); return true; }
+  chatError("You're offline. Try again once you reconnect");
+  return false;
+}
+function chatError(msg) {
+  const el = $('chatErr');
+  el.textContent = msg; el.hidden = false;
+  clearTimeout(el._t); el._t = setTimeout(() => el.hidden = true, 2500);
+}
+function openChat() {
+  CHAT.open = true; CHAT.seen = lastChatId(chatList());
+  $('chat').hidden = false; $('chatToast').hidden = true; $('chatErr').hidden = true;
+  renderChat(true); renderChatBtn();
+}
+function closeChat() { CHAT.open = false; $('chat').hidden = true; renderChatBtn(); }
+function renderChatBtn() {
+  const n = chatList().filter(m => m.id > CHAT.seen && !chatMine(m)).length;
+  $('chatBadge').hidden = !n || CHAT.open;
+  $('chatBadge').textContent = n > 9 ? '9+' : n;
+  $('chatBtn').setAttribute('aria-label', n ? `Chat, ${n} new message${n > 1 ? 's' : ''}` : 'Chat');
+}
+const teamClass = t => t === 0 || t === 1 || t === 2 ? ` t${t}` : '';
+function renderChat(toBottom) {
+  if (!CHAT.open) return;
+  const log = $('chatLog'), list = chatList();
+  const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+  log.innerHTML = list.length ? list.map((m, i) => {
+    const mine = chatMine(m), prev = list[i - 1];
+    const showFrom = !mine && (!prev || prev.seat !== m.seat || prev.name !== m.name);
+    return `<div class="msg-row${mine ? ' mine' : ''}">${showFrom ? `<span class="from">${teamClass(m.team) ? `<span class="dot${teamClass(m.team)}"></span>` : ''}${esc(m.name)}</span>` : ''}<span class="bubble${m.emoji ? ' emoji' : ''}">${esc(m.emoji || m.text)}</span></div>`;
+  }).join('') : '<p class="chat-empty">No messages yet. Say hi, or send a silly face.</p>';
+  if (toBottom || nearBottom) log.scrollTop = log.scrollHeight;
+}
+function chatToast(m) {
+  const t = $('chatToast');
+  t.classList.toggle('big', !!m.emoji);
+  t.innerHTML = `<b>${esc(m.name)}</b><span class="msg">${esc(m.emoji || m.text)}</span>`;
+  t.hidden = false; t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
+  clearTimeout(CHAT.toastTimer);
+  CHAT.toastTimer = setTimeout(() => t.hidden = true, m.emoji ? 2600 : 4000);
 }
 
 /* =================== Local games =================== */
@@ -1007,6 +1163,13 @@ function renderOverlays(v) {
   } else if (mode === 'host' && NET.status === 'connecting' && G && G.phase === 'play') banner = 'Reconnecting to the game server';
   $('banner').hidden = !banner; $('bannerText').textContent = banner;
 
+  // chat button: only while an online game is being played
+  const chatOn = chatAvailable(v);
+  document.body.classList.toggle('chat-on', chatOn);
+  $('chatBtn').hidden = !chatOn;
+  if (!chatOn) { $('chatToast').hidden = true; if (CHAT.open) closeChat(); }
+  else renderChatBtn();
+
   // lobby
   const inLobby = online && (!v || v.phase === 'lobby');
   const lobbyOpen = inLobby && !anySheetOpen(['home', 'rules', 'online', 'setup']);
@@ -1166,6 +1329,18 @@ $('againBtn').addEventListener('click', () => {
 $('viewBoard').addEventListener('click', () => { ui.peek = true; render(); });
 $('tradeBtn').addEventListener('click', () => { if (ui.sel !== null) act({ type: 'trade', k: ui.sel }); });
 $('passBtn').addEventListener('click', () => act({ type: 'pass' }));
+$('chatBtn').addEventListener('click', openChat);
+$('chatToast').addEventListener('click', openChat);
+$('chatClose').addEventListener('click', closeChat);
+$('emojiGrid').innerHTML = EMOJIS.map(e => `<button type="button" data-emoji="${e}" aria-label="Send ${e}">${e}</button>`).join('');
+$('emojiGrid').addEventListener('click', e => { const b = e.target.closest('[data-emoji]'); if (b) sendChat({ emoji: b.dataset.emoji }); });
+$('chatForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = cleanChat($('chatInput').value);
+  if (text && sendChat({ text })) $('chatInput').value = '';
+});
+$('chat').addEventListener('click', e => { if (e.target === $('chat')) closeChat(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && CHAT.open) closeChat(); });
 document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => {
   if (e.target === o && ['home', 'rules', 'setup', 'online'].includes(o.id) && currentView()) hideAll();
 }));
@@ -1192,7 +1367,7 @@ buildBoard();
   if (lg && lg.v === 2 && lg.seats) { G = lg; mode = 'local'; render(); scheduleAI(); }
   else newLocal('cpu', '1v1', 'sharp');
 })();
-window.__seq = { get G() { return G; }, get V() { return V; }, get mode() { return mode; }, NET };
+window.__seq = { get G() { return G; }, get V() { return V; }, get mode() { return mode; }, NET, CHAT };
 })();
 </script>
 </body>
