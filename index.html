@@ -342,9 +342,10 @@ body.seats-on { --seats: 30px; }
     <div class="field"><span class="label">Players</span><div class="seg" id="layoutSeg"></div></div>
     <div class="field" id="diffField">
       <span class="label">Computer skill</span>
-      <div class="seg">
+      <div class="seg three">
         <button data-diff="casual" aria-pressed="false"><b>Casual</b><span>Makes mistakes</span></button>
         <button data-diff="sharp" aria-pressed="true"><b>Sharp</b><span>Blocks your lines</span></button>
+        <button data-diff="expert" aria-pressed="false"><b>Expert</b><span>Counts cards</span></button>
       </div>
     </div>
     <div class="row"><button class="btn ghost" data-back>Back</button><button class="btn" id="dealBtn">Deal</button></div>
@@ -612,11 +613,66 @@ function evalCell(board, i, team, locks) {
   }
   return { atk, def };
 }
+// Expert: try every legal move on a copy of the board and score the whole position for every team.
+// A team's position counts its Sequences and every open 5-in-a-row window by how many chips it already has,
+// with extra weight on "needs one" windows and on two different needs-one spaces (only one can be blocked).
+// The opponents' threats weigh more than our own, because they move next. Jacks cost something to spend.
+// It uses only what a careful player knows: its own hand (gaps it can fill itself count for more) and the
+// cards already played (a gap whose two cards are gone can only be filled with a wild Jack).
+const WINDOWS = [...new Set(WIN_BY_CELL.flat())];
+const EXPERT = { own: [0, 1, 5, 24, 140], opp: [0, 1, 6, 34, 420], seq: 1500, fork: 260, oppFork: 500, wild: 80, remove: 60, mine: 1.2, gone: 0.35, one: 0.8 };
+function positionValue(board, seqs, team, w, fork, gapWeight) {
+  const locks = new Set(seqs[team].flat());
+  const needs = new Set();
+  let v = seqs[team].length * EXPERT.seq;
+  for (const win of WINDOWS) {
+    let c = 0, lk = 0, gap = -1, blocked = false, gw = 0;
+    for (const j of win) {
+      if (isCorner(j)) c++;
+      else if (board[j] === null) { gap = j; gw += gapWeight[j]; }
+      else if (board[j] === team) { c++; if (locks.has(j)) lk++; }
+      else { blocked = true; break; }
+    }
+    if (blocked || lk > 1 || c >= 5) continue;
+    v += w[c] * gw / (5 - c);
+    if (c === 4) needs.add(gap);
+  }
+  if (needs.size >= 2) v += fork;
+  return v;
+}
+function chooseExpert(G, s) {
+  const team = seatTeam(G, s), target = targetFor(G.teams), hand = G.hands[s];
+  const seen = {}; // copies of each card we know are out of play: played (discard pile) or in our hand
+  for (const c of G.discard.concat(hand)) seen[c] = (seen[c] || 0) + 1;
+  const oppGap = LAYOUT.map(c => c === 'XX' ? 0 : [EXPERT.gone, EXPERT.one, 1][Math.max(0, 2 - (seen[c] || 0))]);
+  let best = null;
+  hand.forEach((card, k) => {
+    const rest = hand.filter((_, i) => i !== k), wild = rest.some(isTwoEyed);
+    const ownGap = LAYOUT.map(c => c === 'XX' ? 0 : wild || rest.includes(c) ? 1 + EXPERT.mine : 1);
+    for (const cell of targetsOn(G.board, G.seqs, team, card)) {
+      const T = { board: G.board.slice(), seqs: G.seqs.map(l => l.slice()) };
+      if (isOneEyed(card)) T.board[cell] = null;
+      else { T.board[cell] = team; findSequences(T, team, cell); }
+      let score;
+      if (T.seqs[team].length >= target) score = 1e9; // this move wins
+      else {
+        score = positionValue(T.board, T.seqs, team, EXPERT.own, EXPERT.fork, ownGap);
+        for (let t = 0; t < G.teams; t++) if (t !== team) score -= positionValue(T.board, T.seqs, t, EXPERT.opp, EXPERT.oppFork, oppGap);
+        if (isTwoEyed(card)) score -= EXPERT.wild;
+        if (isOneEyed(card)) score -= EXPERT.remove;
+      }
+      score += Math.random() * 0.5; // break ties
+      if (!best || score > best.score) best = { type: 'play', k, cell, score };
+    }
+  });
+  return best;
+}
 function chooseAI(G, s) {
   const team = seatTeam(G, s);
   const deadK = G.hands[s].findIndex(c => deadOn(G.board, G.seqs, team, c));
   if (deadK >= 0 && !G.traded) return { type: 'trade', k: deadK };
   if (!hasMoveG(G, s)) return { type: 'pass' };
+  if (G.diff === 'expert') return chooseExpert(G, s);
   const locks = [0, 1, 2].map(t => new Set((G.seqs[t] || []).flat()));
   const casual = G.diff === 'casual', noise = casual ? 70 : 3;
   let best = null;
