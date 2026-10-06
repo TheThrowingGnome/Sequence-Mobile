@@ -72,6 +72,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 }
 .score.active { border-color: var(--tc); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tc) 25%, transparent); }
 .score .sname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.score .stag { flex: none; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.score .stag.off { color: var(--danger); }
+.score.off .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--tc); }
 .score .pips { display: flex; gap: 3px; margin-left: auto; }
 .score .pips i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--tc); }
 .score .pips i.on { background: var(--tc); }
@@ -89,7 +92,16 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); ou
 .seat.off .dot { background: transparent; box-shadow: inset 0 0 0 2px var(--tc); }
 .seat .off-tag { color: var(--danger); font-weight: 700; }
 
-.board-wrap { width: min(100%, max(300px, calc(100dvh - 320px))); margin: 0 auto; }
+/* The board takes all the height the other rows leave. --chrome is their total: header, score pills, the seat strip
+   when shown (--seats), status line, hand (its height follows the width: 7 cards at 5:7), tray row, padding and gaps,
+   the safe areas, plus 8px so a status line that wraps to two lines only pushes the bottom padding off screen.
+   On phones the board is usually width-bound, so it also reaches 10px into each side gutter (6px from the screen edge). */
+body { --seats: 0px; }
+body.seats-on { --seats: 30px; }
+.board-wrap {
+  --chrome: calc(199px + var(--seats) + (min(100vw, 620px) - 68px) / 5 + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px));
+  width: min(100% + 20px, max(300px, calc(100dvh - var(--chrome)))); align-self: center;
+}
 .board {
   position: relative; container-type: inline-size; aspect-ratio: 1; width: 100%;
   display: grid; grid-template-columns: repeat(10, 1fr); grid-template-rows: repeat(10, 1fr); gap: 2px;
@@ -1089,12 +1101,24 @@ function render() {
   // Scores per team
   const target = targetFor(v.teams), turnTeam = v.seats[v.turn].team;
   $('scores').style.setProperty('--n', v.teams);
-  $('scores').innerHTML = Array.from({ length: v.teams }, (_, t) =>
-    `<div class="score t${t}${v.winner === null && turnTeam === t ? ' active' : ''}"><span class="dot"></span><span class="sname">${esc(teamLabel(v, t))}${myTeam === t && LAYOUTS[v.layout].per > 1 ? ' (you)' : ''}</span><span class="pips">${Array.from({ length: target }, (_, n) => `<i class="${v.seqs[t].length > n ? 'on' : ''}"></i>`).join('')}</span></div>`).join('');
+  // With one player per colour the pill is the player, so it also carries what the seat strip would show:
+  // your own pill reads "You" (keeps the other names from being cut short), plus Offline / computer tags
+  const solo = LAYOUTS[v.layout].per === 1;
+  $('scores').innerHTML = Array.from({ length: v.teams }, (_, t) => {
+    const si = v.seats.findIndex(s => s.team === t), st = v.seats[si];
+    let name = teamLabel(v, t), tag = '', off = false;
+    if (solo && mode !== 'local' && st) {
+      off = st.kind === 'remote' && !st.online;
+      if (si === v.me) name = 'You';
+      else tag = off ? '<span class="stag off">Offline</span>' : st.kind === 'cpu' ? '<span class="stag" aria-label="computer">🤖</span>' : '';
+    }
+    return `<div class="score t${t}${v.winner === null && turnTeam === t ? ' active' : ''}${off ? ' off' : ''}"><span class="dot"></span><span class="sname">${esc(name)}${myTeam === t && !solo ? ' (you)' : ''}</span>${tag}<span class="pips">${Array.from({ length: target }, (_, n) => `<i class="${v.seqs[t].length > n ? 'on' : ''}"></i>`).join('')}</span></div>`;
+  }).join('');
 
-  // Seat strip (teams or online)
-  const showSeats = LAYOUTS[v.layout].per > 1 || mode !== 'local';
+  // Seat strip: only for teams, where the pills show teams and this shows the players
+  const showSeats = !solo;
   $('seats').hidden = !showSeats;
+  document.body.classList.toggle('seats-on', showSeats);
   if (showSeats) $('seats').innerHTML = v.seats.map((s, i) => {
     const off = s.kind === 'remote' && !s.online;
     return `<span class="seat t${s.team}${i === v.turn && v.winner === null ? ' turn' : ''}${off ? ' off' : ''}"><span class="dot"></span>${esc(i === v.me && mode !== 'local' ? s.name + ' (you)' : s.name)}${s.kind === 'cpu' ? ' 🤖' : ''} <span class="n">${s.cards}</span>${off ? ' <span class="off-tag">offline</span>' : ''}</span>`;
@@ -1165,7 +1189,7 @@ function winnerText(v) {
 function renderEmpty(v) {
   cells.forEach(el => { el.className = el.className.replace(/\b(c[0-2]|locked|target|strike|dim|last|ghost|drop)\b/g, '').trim(); });
   $('seqLines').innerHTML = '';
-  $('scores').innerHTML = ''; $('seats').hidden = true;
+  $('scores').innerHTML = ''; $('seats').hidden = true; document.body.classList.remove('seats-on');
   $('hand').innerHTML = '';
   $('tradeBtn').hidden = $('passBtn').hidden = true;
   $('deckCount').textContent = 104; $('discardStat').innerHTML = '';
